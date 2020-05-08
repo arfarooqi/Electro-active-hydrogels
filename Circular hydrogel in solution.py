@@ -14,6 +14,11 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from __future__ import print_function
+from dolfin import (File, Constant, near, IntervalMesh, interval, split, MeshFunction, cells, refine, CompiledSubDomain, DirichletBC, Point, FiniteElement, \
+                    MixedElement, FunctionSpace, Function, UserExpression, TestFunctions, derivative, NonlinearVariationalProblem, assign, dot, ds, sqrt, \
+                    inner, grad, dx, SubMesh, solve, plot, TestFunction, TrialFunction, VectorFunctionSpace, as_vector, VectorElement, project, FacetNormal, \
+                    interpolate, Expression, NonlinearVariationalSolver, nabla_grad, TrialFunctions, assemble, LinearVariationalSolver, RectangleMesh, \
+                    LinearVariationalProblem)
 from dolfin import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,31 +27,31 @@ import dolfin as d
 from timeit import default_timer as timer
 startime = timer() 
 
-D_an = d.Constant(1.0E-7) # m^2/s
-D_ca = d.Constant(1.0E-7) # m^2/s
-mu_an = d.Constant(3.9607E-6) # m^2/s*V
-mu_ca = d.Constant(3.9607E-6) # m^2/s*V
-z_an = d.Constant(-1.0)
-z_ca = d.Constant(1.0)
-z_fc = d.Constant(-1.0)
-Farad = d.Constant(9.6487E4) # C/mol
-eps0 = d.Constant(8.854E-12) # As/Vm
-epsR = d.Constant(100.0)
-Temp = d.Constant(293.0)
-R = d.Constant(8.3143)
+D_an = Constant(1.0E-7) # m^2/s
+D_ca = Constant(1.0E-7) # m^2/s
+mu_an = Constant(3.9607E-6) # m^2/s*V
+mu_ca = Constant(3.9607E-6) # m^2/s*V
+z_an = Constant(-1.0)
+z_ca = Constant(1.0)
+z_fc = Constant(-1.0)
+Farad = Constant(9.6487E4) # C/mol
+eps0 = Constant(8.854E-12) # As/Vm
+epsR = Constant(100.0)
+Temp = Constant(293.0)
+R = Constant(8.3143)
 
 ################################## mesh part ##################################
 
-mesh = d.RectangleMesh(Point(0.0, 0.0), Point(15.0E-3, 15.0E-3), 499, 501)
+mesh = RectangleMesh(Point(0.0, 0.0), Point(15.0E-3, 15.0E-3), 160, 160)
 
 plot(mesh, title = "Original Mesh")
 #File('mesh_orig.pvd') << mesh
 plt.show()
 
 center = [7.5E-3, 7.5E-3]
-refinement_cycles = 4
+refinement_cycles = 5
 for _ in range(refinement_cycles):
-    refine_cells = d.MeshFunction("bool", mesh, 2)
+    refine_cells = MeshFunction("bool", mesh, 2)
     refine_cells.set_all(False)
     for cell in cells(mesh):
         mp = cell.midpoint()
@@ -80,7 +85,7 @@ subdomains = MeshFunction("size_t", mesh, 2)
 subdomains.set_all(0)        
 subdomain.mark(subdomains, 1)
 
-fc = d.Constant(2.0) # FCD
+fc = Constant(2.0) # FCD
 V0_r = FunctionSpace(mesh, 'DG', 0)
 fc_function = Function(V0_r)
 fc_val = [0.0, fc]
@@ -96,12 +101,12 @@ plt.ylim(0.0, 0.015)
 plt.yticks([0.0, 0.005, 0.01, 0.015])
 plt.show()
 
-Sol_c = d.Constant(1.0)
+Sol_c = Constant(1.0)
 Poten = 50.0E-3
-l_bc_an = d.DirichletBC(ME.sub(0), Sol_c, left_boundary)
-r_bc_an = d.DirichletBC(ME.sub(0), Sol_c, right_boundary)
-l_bc_ca = d.DirichletBC(ME.sub(1), Sol_c, left_boundary)
-r_bc_ca = d.DirichletBC(ME.sub(1), Sol_c, right_boundary)
+l_bc_an = DirichletBC(ME.sub(0), Sol_c, left_boundary)
+r_bc_an = DirichletBC(ME.sub(0), Sol_c, right_boundary)
+l_bc_ca = DirichletBC(ME.sub(1), Sol_c, left_boundary)
+r_bc_ca = DirichletBC(ME.sub(1), Sol_c, right_boundary)
 l_bc_psi = DirichletBC(ME.sub(2), Constant(-Poten), left_boundary)
 r_bc_psi = DirichletBC(ME.sub(2), Constant(Poten), right_boundary)
 bcs = [l_bc_an, r_bc_an, l_bc_ca, r_bc_ca, l_bc_psi, r_bc_psi]
@@ -162,9 +167,9 @@ plt.yticks([0.0, 0.005, 0.01, 0.015])
 plt.colorbar(third)
 plt.show()
 
-d.File('an_ES.pvd') << an
-d.File('ca_ES.pvd') << ca
-d.File('psi_ES.pvd') << psi
+File('an_ES.pvd') << an
+File('ca_ES.pvd') << ca
+File('psi_ES.pvd') << psi
 
 totime = aftersolveT - startime
 #print("Start time is : " + str(round(startime, 2)))
