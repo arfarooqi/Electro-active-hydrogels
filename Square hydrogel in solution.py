@@ -12,54 +12,58 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 from __future__ import print_function
+from dolfin import (File, Constant, near, IntervalMesh, interval, split, MeshFunction, cells, refine, CompiledSubDomain, DirichletBC, Point, FiniteElement, \
+                    MixedElement, FunctionSpace, Function, UserExpression, TestFunctions, derivative, NonlinearVariationalProblem, assign, dot, ds, sqrt, \
+                    inner, grad, dx, SubMesh, solve, plot, TestFunction, TrialFunction, VectorFunctionSpace, as_vector, VectorElement, project, FacetNormal, \
+                    interpolate, Expression, NonlinearVariationalSolver, nabla_grad, TrialFunctions, assemble, LinearVariationalSolver, RectangleMesh, \
+                    LinearVariationalProblem)
 from dolfin import *
 import numpy as np
 import matplotlib.pyplot as plt
-import dolfin as d
+#import dolfin as d
 
 from timeit import default_timer as timer
 startime = timer() 
 
-D_an = d.Constant(1.0E-7) # m^2/s
-D_ca = d.Constant(1.0E-7) # m^2/s
-mu_an = d.Constant(3.9607E-6) # m^2/s*V
-mu_ca = d.Constant(3.9607E-6) # m^2/s*V
-z_an = d.Constant(-1.0)
-z_ca = d.Constant(1.0)
-z_fc = d.Constant(-1.0)
-Farad = d.Constant(9.6487E4) # C/mol
-eps0 = d.Constant(8.854E-12) # As/Vm
-epsR = d.Constant(100.0)
-Temp = d.Constant(293.0)
-R = d.Constant(8.3143)
+D_an = Constant(1.0E-7) # m^2/s
+D_ca = Constant(1.0E-7) # m^2/s
+mu_an = Constant(3.9607E-6) # m^2/s*V
+mu_ca = Constant(3.9607E-6) # m^2/s*V
+z_an = Constant(-1.0)
+z_ca = Constant(1.0)
+z_fc = Constant(-1.0)
+Farad = Constant(9.6487E4) # C/mol
+eps0 = Constant(8.854E-12) # As/Vm
+epsR = Constant(100.0)
+Temp = Constant(293.0)
+R = Constant(8.3143)
 
 ################################## mesh part ##################################
 
-mesh = d.RectangleMesh(Point(0.0, 0.0), Point(15.0E-3, 15.0E-3), 1499, 1501)
+mesh = RectangleMesh(Point(0.0, 0.0), Point(15.0E-3, 15.0E-3), 150, 150)
 #File('mesh_orig.pvd') << mesh
 
-refinement_cycles = 1
+refinement_cycles = 5
 for _ in range(refinement_cycles):
-    refine_cells = d.MeshFunction("bool", mesh, 2)
+    refine_cells = MeshFunction("bool", mesh, 2)
     refine_cells.set_all(False)
     for cell in cells(mesh):
         mp = cell.midpoint()
-        if mp.x() > 4.0e-3 and mp.x() < 11.0e-3:
-            if abs(mp.y() - 10.0e-3) < 1.0e-3:
+        if mp.x() > 4.8e-3 and mp.x() < 10.2e-3:
+            if abs(mp.y() - 10.0e-3) < 0.2e-3:
                 refine_cells[cell] = True
-            elif abs(mp.y() - 5.0e-3) < 1.0e-3:
+            elif abs(mp.y() - 5.0e-3) < 0.2e-3:
                 refine_cells[cell] = True
                 
-        if mp.y() > 4.0e-3 and mp.y() < 11.0e-3:
-            if abs(mp.x() - 10.0e-3) < 1.0E-3:
+        if mp.y() > 4.8e-3 and mp.y() < 10.2e-3:
+            if abs(mp.x() - 10.0e-3) < 0.2E-3:
                 refine_cells[cell] = True
-            elif abs(mp.x() - 5.0e-3) < 1.0e-3:
+            elif abs(mp.x() - 5.0e-3) < 0.2e-3:
                 refine_cells[cell] = True
                 
     mesh = refine(mesh, refine_cells)
-    File('Saunders2008_2D_NoSal_ES/mesh_refine.pvd') << mesh
+    File('mesh_refine.pvd') << mesh
 
 def left_boundary(x, on_boundary):
     return on_boundary and near(x[0], 0.0)
@@ -81,7 +85,7 @@ subdomains = MeshFunction("size_t", mesh, 2)
 subdomains.set_all(0)        
 subdomain.mark(subdomains, 1)
 
-fc = d.Constant(2.0) # FCD
+fc = Constant(2.0) # FCD
 V0_r = FunctionSpace(mesh, 'DG', 0)
 fc_function = Function(V0_r)
 fc_val = [0.0, fc]
@@ -97,33 +101,41 @@ plt.ylim(0.0, 0.015)
 plt.yticks([0.0, 0.005, 0.01, 0.015])
 plt.show()
 
-Sol_c = d.Constant(1.0)
+Sol_c = Constant(1.0)
 Poten = 50.0e-3
-l_bc_an = d.DirichletBC(ME.sub(0), Sol_c, left_boundary)
-r_bc_an = d.DirichletBC(ME.sub(0), Sol_c, right_boundary)
-l_bc_ca = d.DirichletBC(ME.sub(1), Sol_c, left_boundary)
-r_bc_ca = d.DirichletBC(ME.sub(1), Sol_c, right_boundary)
+l_bc_an = DirichletBC(ME.sub(0), Sol_c, left_boundary)
+r_bc_an = DirichletBC(ME.sub(0), Sol_c, right_boundary)
+l_bc_ca = DirichletBC(ME.sub(1), Sol_c, left_boundary)
+r_bc_ca = DirichletBC(ME.sub(1), Sol_c, right_boundary)
 l_bc_psi = DirichletBC(ME.sub(2), Constant(-Poten), left_boundary)
 r_bc_psi = DirichletBC(ME.sub(2), Constant(Poten), right_boundary)
 bcs = [l_bc_an, r_bc_an, l_bc_ca, r_bc_ca, l_bc_psi, r_bc_psi]
 
 u = Function(ME)
 
-class InitialConditions(UserExpression):
- def eval(self, values, x):
-     if((x[0] >= 5.0E-3) and (x[0] <= 10.0E-3) and (x[1] >= 5.0E-3) and (x[1] <= 10.0E-3)):
-         values[0] = 0.4142
-         values[1] = 2.4142
-         values[2] = -22.252E-3
+V = FunctionSpace(mesh, P1)
+an_int = interpolate(Expression('((pow((x[0] - 7.5E-3), 2) + pow((x[1] - 7.5E-3), 2)) <= pow(2.5E-3, 2)) ? 0.4142 : 1.0', degree = 2), V)
+ca_int = interpolate(Expression('((pow((x[0] - 7.5E-3), 2) + pow((x[1] - 7.5E-3), 2)) <= pow(2.5E-3, 2)) ? 2.4142 : 1.0', degree = 2), V)
+psi_int = interpolate(Expression('((pow((x[0] - 7.5E-3), 2) + pow((x[1] - 7.5E-3), 2)) <= pow(2.5E-3, 2)) ? -22.252E-3 : 0.0', degree = 2), V)
+assign(u.sub(0), an_int)
+assign(u.sub(1), ca_int)
+assign(u.sub(2), psi_int)
+
+#class InitialConditions(UserExpression):
+# def eval(self, values, x):
+#    if((x[0] >= 5.0E-3) and (x[0] <= 10.0E-3) and (x[1] >= 5.0E-3) and (x[1] <= 10.0E-3)):
+#       values[0] = 0.4142
+#       values[1] = 2.4142
+#       values[2] = -22.252E-3
 #         print("counter value",values)
-     else:
-         values[0] = 1.0
-         values[1] = 1.0
-         values[2] = 0.0
+#     else:
+#       values[0] = 1.0
+#       values[1] = 1.0
+#       values[2] = 0.0
 #         print("counter value 2 ",values)
- def value_shape(self):
-   return (3,)
-u.interpolate(InitialConditions(degree=1))
+# def value_shape(self):
+#   return (3,)
+# u.interpolate(InitialConditions(degree=1))
 
 an, ca, psi = split(u)
 van, vca, vpsi = TestFunctions(ME)
@@ -172,9 +184,10 @@ plt.yticks([0.0, 0.005, 0.01, 0.015])
 plt.colorbar(third)
 plt.show()
 
-d.File('Wall2001C_2D_ES_NoSal/an_ES.pvd') << an
-d.File('Wall2001C_2D_ES_NoSal/ca_ES.pvd') << ca
-d.File('Wall2001C_2D_ES_NoSal/psi_ES.pvd') << psi
+File('an_ES.pvd') << an
+File('ca_ES.pvd') << ca
+File('psi_ES.pvd') << psi
+
 y_position = 7.5e-3
 x_min = 0.0
 x_max = 15.0e-3
@@ -194,7 +207,7 @@ plt.xticks([0.0, 0.005, 0.01, 0.015])
 #plt.yticks([0.0, 0.5, 1.0, 1.5, 2.0])
 plt.grid(color = 'k', linestyle = '-', linewidth = 0.1)
 plt.legend(['$c^-$'], loc='best', markerfirst = False, prop={'size': 15})
-plt.savefig('WallC2001_2D_ES_NoSal/an_ES_1D')
+plt.savefig('an_ES_1D')
 plt.show()
 
 ca_vector = []
@@ -210,7 +223,7 @@ plt.xticks([0.0, 0.005, 0.01, 0.015])
 plt.title("Cation concentration")
 plt.legend(['$c^+$'], loc='best', markerfirst = False, prop={'size': 15})
 plt.grid(color = 'k', linestyle = '-', linewidth = 0.1)
-plt.savefig('Wall2001C_2D_ES_NoSal/ca_ES_1D')
+plt.savefig('ca_ES_1D')
 plt.show()
 
 psi_vector = []
@@ -228,7 +241,7 @@ plt.xticks([0.0, 0.005, 0.01, 0.015])
 plt.grid(color = 'k', linestyle = '-', linewidth = 0.1)
 #plt.legend(['$anion$', '$cation$'], loc='best', markerfirst = False, prop={'size': 15})
 plt.legend(['$\psi$'], loc='best', markerfirst = False, prop={'size': 15})
-plt.savefig('Wall2001C_2D_ES_NoSal/psi_ES_1D')
+plt.savefig('psi_ES_1D')
 plt.show()
 
 print("Max. anion concentratrion: {0:1.3f}" .format(max(an_vector)))
